@@ -90,7 +90,8 @@ class ArgumentLoader(object):
     def _fuse_args(self, dumped_args, args, overwrite):
         fused_args = {}
         for k in list(dumped_args.keys()) + list(args.keys()):
-            if k in dumped_args and k in args and dumped_args[k] != args[k]:
+            if k in dumped_args and k in args and dumped_args[k] != args[k] and\
+                    args[k] != self._parser.get_default(k):
                 if overwrite:
                     fused_args[k] = args[k]
                 elif args[k] == self._parser.get_default(k):
