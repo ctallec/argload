@@ -106,3 +106,18 @@ class TestArgload(TestCase):
             self.assertIn("No old", str(context.exception))
         finally:
             shutil.rmtree('log')
+
+    def overwrite_default_test(self):
+        """ You can overwrite defaults, and it behaves properly """
+        try:
+            parser = argparse.ArgumentParser()
+            parser.add_argument('--a', type=float, default=1e-3)
+            parser.add_argument('--b', type=float, default=2.)
+            parser = argload.ArgumentLoader(parser, ['a', 'b'])
+            mkdir('log')
+            parser.parse_args(['--logdir', 'log', '--a', '1e-2', '--b', '3.'])
+            args = parser.parse_args(['--logdir', 'log', '--a', '1e-3', '--overwrite'])
+            self.assertEqual(args.a, 1e-3)
+            self.assertEqual(args.b, 3.)
+        finally:
+            shutil.rmtree('log')

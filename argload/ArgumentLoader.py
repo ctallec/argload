@@ -27,6 +27,12 @@ class ArgumentLoader(object):
 
     def parse_known_args(self, args=None, namespace=None):
         """ Parses known command line arguments, and reloads appropriately """
+        # not very clean, use _parse_known_args to only retrieve specified args
+        specified_args = Namespace()
+        raw_args = sys.argv[1:] if args is None else args
+        self._parser._parse_known_args(raw_args, specified_args)
+        specified_args = vars(specified_args).keys()
+
         # starts by parsing current arguments
         args, argv = self._parser.parse_known_args(args, namespace)
 
@@ -64,7 +70,7 @@ class ArgumentLoader(object):
             dumped_args = vars(pickle.load(f))
 
         args = vars(args)
-        args = self._fuse_args(dumped_args, args, overwrite)
+        args = self._fuse_args(dumped_args, args, specified_args, overwrite)
 
         if dump:
             self._dump_args(args, args_file, readable_args_file)
@@ -87,13 +93,11 @@ class ArgumentLoader(object):
         with open(readable_args_file, 'w') as f:
             print(vars(args_to_dump), file=f)
 
-    def _fuse_args(self, dumped_args, args, overwrite):
+    def _fuse_args(self, dumped_args, args, specified_args, overwrite):
         fused_args = {}
         for k in list(dumped_args.keys()) + list(args.keys()):
-            if k in dumped_args and k in args and dumped_args[k] != args[k]:
-                if args[k] == self._parser.get_default(k):
-                    fused_args[k] = dumped_args[k]
-                elif overwrite:
+            if k in dumped_args and k in specified_args and dumped_args[k] != args[k]:
+                if overwrite:
                     fused_args[k] = args[k]
                 else:
                     raise ValueError("Overwritting a dumped value requires the overwrite flag.")
