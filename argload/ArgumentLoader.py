@@ -3,6 +3,7 @@ import os.path as path
 from copy import copy
 import pickle
 from argparse import Namespace
+import sys
 
 class ArgumentLoader(object):
     """ Wrap around a parser, to make it automatically reload arguments.
