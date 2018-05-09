@@ -1,5 +1,5 @@
 """ Unit testing for Argload class """
-from os import mkdir
+from os import mkdir, path
 import argparse
 import shutil
 from unittest import TestCase
@@ -119,5 +119,28 @@ class TestArgload(TestCase):
             args = parser.parse_args(['--logdir', 'log', '--a', '1e-3', '--overwrite'])
             self.assertEqual(args.a, 1e-3)
             self.assertEqual(args.b, 3.)
+        finally:
+            shutil.rmtree('log')
+
+    def name_from_args_test(self):
+        """ Test normal use case """
+        try:
+            parser = argparse.ArgumentParser()
+            parser.add_argument('--a', type=int, nargs='*')
+            parser.add_argument('--b', type=int, default=2)
+            parser = argload.ArgumentLoader(parser, ['a'])
+            mkdir('log')
+
+            args = parser.parse_args(['--logdir', 'log', '--name_from_args', '--a', '3', '5'])
+            self.assertTrue(args.logdir == 'log/a=[3, 5]')
+
+            parser.parse_args(['--logdir', 'log', '--name_from_args', '--a', '2', '5'])
+            self.assertTrue(path.exists('log/a=[2, 5]') and path.exists('log/a=[3, 5]'))
+
+            args = parser.parse_args(['--logdir', 'log/a=[3, 5]'])
+
+            self.assertTrue(args.a == [3, 5])
+            self.assertTrue(args.b == 2)
+            self.assertTrue(args.logdir == 'log/a=[3, 5]')
         finally:
             shutil.rmtree('log')
