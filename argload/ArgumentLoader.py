@@ -1,9 +1,11 @@
 """ Defining ArgumentLoader class """
 import os.path as path
-from copy import copy
+import os
+from copy import copy, deepcopy
 import pickle
 from argparse import Namespace
 import sys
+
 
 class ArgumentLoader(object):
     """ Wrap around a parser, to make it automatically reload arguments.
@@ -21,6 +23,8 @@ class ArgumentLoader(object):
         self._parser.add_argument('--overwrite', action='store_true',
                                   help='Flag explicitly specifying that specified arguments must '
                                   'overwrite reloaded arguments.')
+        self._parser.add_argument('--name_from_args', action='store_true',
+                                  help='Create sub-logdir name from non-default arguments ')
         self._parser.add_argument('--dump', action='store_true',
                                   help='Flag specifying that overwritten arguments will replace '
                                   'previous reloading arguments')
@@ -32,7 +36,7 @@ class ArgumentLoader(object):
         specified_args = Namespace()
         raw_args = sys.argv[1:] if args is None else args
         self._parser._parse_known_args(raw_args, specified_args)
-        specified_args = vars(specified_args).keys()
+        specified_keys = vars(specified_args).keys()
 
         # starts by parsing current arguments
         args, argv = self._parser.parse_known_args(args, namespace)
@@ -40,6 +44,11 @@ class ArgumentLoader(object):
         # if logdir does not exist, throw exception
         if not path.exists(args.logdir):
             raise ValueError("Logdir does not exist.")
+
+        if args.name_from_args:
+            args.logdir = path.join(args.logdir, self._make_name(specified_args))
+            if not path.exists(args.logdir):
+                os.makedirs(args.logdir)
 
         # retrieve logdir overwrite and dump and delete them from args: we don't
         # want to store them in the args file
@@ -71,13 +80,12 @@ class ArgumentLoader(object):
             dumped_args = vars(pickle.load(f))
 
         args = vars(args)
-        args = self._fuse_args(dumped_args, args, specified_args, overwrite)
+        args = self._fuse_args(dumped_args, args, specified_keys, overwrite)
 
         if dump:
             self._dump_args(args, args_file, readable_args_file)
 
         return args, argv
-
 
     def _dump_args(self, args, args_file, readable_args_file):
         args_to_dump = copy(args)
@@ -94,10 +102,10 @@ class ArgumentLoader(object):
         with open(readable_args_file, 'w') as f:
             print(vars(args_to_dump), file=f)
 
-    def _fuse_args(self, dumped_args, args, specified_args, overwrite):
+    def _fuse_args(self, dumped_args, args, specified_keys, overwrite):
         fused_args = {}
         for k in list(dumped_args.keys()) + list(args.keys()):
-            if k in dumped_args and k in specified_args and dumped_args[k] != args[k]:
+            if k in dumped_args and k in specified_keys and dumped_args[k] != args[k]:
                 if overwrite:
                     fused_args[k] = args[k]
                 else:
@@ -109,6 +117,27 @@ class ArgumentLoader(object):
 
         return Namespace(**fused_args)
 
+    def _make_name(self, specified_args):
+        specified_args = vars(deepcopy(specified_args))
+        for key in ['root', 'logdir', 'overwrite', 'dump', 'name_from_args']:
+            try:
+                del specified_args[key]
+            except KeyError:
+                pass
+
+        if not specified_args:
+            raise ValueError("When using '--name_from_args' flag, at least "
+                             "one argument must be provided")
+
+        # BEWARE: this naming is dependent on the order of arguments.
+        # Maybe use on ordered dictionnary instead, ordered lexicographically
+        name = ''
+        for key, arg in specified_args.items():
+            if (arg is True) or (arg is False):
+                name += key + '_'
+            else:
+                name += key + '=' + str(arg) + '_'
+        return name[:-1]
 
     def parse_args(self, args=None, namespace=None):
         """ Parse args """
